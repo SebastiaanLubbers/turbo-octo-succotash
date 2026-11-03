@@ -1,0 +1,20 @@
+{
+  "appDisplayName": "SharePoint Structure Builder",
+  "appId": "e2707a39-ba53-43ed-ada6-a724891c46de",
+  "buildEntryPoint": "index.html",
+  "buildPath": "dist",
+  "connectionReferences": {
+    "ebd72527-77de-4024-95df-c0c98b91b8ed": {
+      "dataSets": {},
+      "dataSources": [
+        "sharepointonline"
+      ],
+      "displayName": "SharePoint",
+      "id": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+    }
+  },
+  "environmentId": "a874c026-d0b9-e790-9a01-8e54495cc558",
+  "repositoryId": "b97b06d6-e255-460b-abbb-25f162d1aee9",
+  "version": "0.0",
+  "description": "Guided wizard to create a standardized project folder structure in a SharePoint document library and upload a document into it, using the signed-in user's permissions."
+}
