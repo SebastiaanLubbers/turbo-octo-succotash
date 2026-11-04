@@ -31,11 +31,11 @@ jobs:
       - name: Build
         env:
           VITE_BASE: ${{ format('/{0}/', github.event.repository.name) }}
-          VITE_ENTRA_CLIENT_ID: ${{ vars.VITE_ENTRA_CLIENT_ID }}
-          VITE_ENTRA_TENANT_ID: ${{ vars.VITE_ENTRA_TENANT_ID }}
+          VITE_ENTRA_CLIENT_ID: ${{ secrets.VITE_ENTRA_CLIENT_ID }}
+          VITE_ENTRA_TENANT_ID: ${{ secrets.VITE_ENTRA_TENANT_ID }}
         run: |
           if [ -z "$VITE_ENTRA_CLIENT_ID" ]; then
-            echo "Set the VITE_ENTRA_CLIENT_ID repository variable before deploying."
+            echo "Set the VITE_ENTRA_CLIENT_ID repository secret before deploying."
             exit 1
           fi
           npm run build

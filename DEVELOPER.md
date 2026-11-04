@@ -72,10 +72,11 @@ The Pages workflow builds and deploys a repository project site when a commit
 reaches `main`. It can also be started manually from the Actions tab.
 
 1. In repository **Settings > Pages**, set the source to **GitHub Actions**.
-2. Under **Settings > Secrets and variables > Actions > Variables**, add
+2. Under **Settings > Secrets and variables > Actions > Secrets**, add
    `VITE_ENTRA_CLIENT_ID` and optionally `VITE_ENTRA_TENANT_ID`. These IDs are
-   public build-time values, not client secrets. The tenant defaults to
-   `organizations` when omitted.
+   included in the public build even when stored as GitHub secrets; never use
+   an Entra client secret here. The tenant defaults to `organizations` when
+   omitted.
 3. Register `https://OWNER.github.io/REPOSITORY/auth-callback.html` as a
    **Single-page application** redirect URI in Entra, and grant the delegated
    Microsoft Graph permissions described above.
