@@ -1,23 +1,19 @@
 import { useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, ExternalLink, FileUp, RotateCw, Upload, X } from "lucide-react";
+import { CheckCircle2, FileUp, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { useConfirm } from "@/hooks/use-confirm";
-import { safeUrl } from "@/lib/safe-url";
 import type { SharePointConfiguration, UploadResult } from "@/models";
 import { toAppError } from "@/services/errors";
 import {
-  BINARY_NOT_SUPPORTED_MESSAGE,
   SharePointFileService,
-  canUploadInApp,
   fileServerPath,
   flowUploadsEnabled,
   validateLocalFile,
   type UploadStage,
 } from "@/services/sharepoint-file-service";
 import { formatBytes } from "@/services/validation";
-import { sharePointLink } from "@/state/selectors";
 import { ErrorPanel } from "@/components/wizard/error-panel";
 import { PathLine } from "@/components/wizard/destination-tree";
 
@@ -33,7 +29,7 @@ const STAGE_LABEL: Record<UploadStage, string> = {
 
 /**
  * Adds one local file to an existing SharePoint folder.
- * Same rules as the wizard: text files only, duplicate check, explicit
+ * Same rules as the wizard: duplicate check, explicit
  * confirmation, verified upload, never overwrite.
  */
 export function AddFilePanel({
@@ -52,22 +48,16 @@ export function AddFilePanel({
   const confirm = useConfirm();
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [binary, setBinary] = useState<boolean | null>(null);
   const [stage, setStage] = useState<UploadStage | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [result, setResult] = useState<UploadResult | null>(null);
   const problem = validateLocalFile(file);
-  const blocked = binary === true && !flowUploadsEnabled(config);
-  const viaFlow = binary === true && flowUploadsEnabled(config);
-  const folderLink = safeUrl(sharePointLink(config.site.url, folderServerPath)) ?? "#";
 
-  async function pick(f: File | null) {
+  function pick(f: File | null) {
     setFile(f);
     setResult(null);
     setError(null);
-    setBinary(null);
-    if (f && !validateLocalFile(f)) setBinary(!(await canUploadInApp(f)));
   }
 
   async function upload() {
@@ -151,27 +141,6 @@ export function AddFilePanel({
       </div>
       {file && problem && <p className="text-sm text-red-700 dark:text-red-300">{problem}</p>}
 
-      {viaFlow && !problem && <p className="text-sm">This file is uploaded through the Power Automate upload flow.</p>}
-      {blocked && (
-        <div role="alert" className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-          <div className="space-y-2">
-            <p>{BINARY_NOT_SUPPORTED_MESSAGE}</p>
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" asChild>
-                <a href={folderLink} target="_blank" rel="noreferrer">
-                  Open folder in SharePoint <ExternalLink aria-hidden="true" />
-                  <span className="sr-only">(opens in a new tab)</span>
-                </a>
-              </Button>
-              <Button size="sm" variant="outline" onClick={onUploaded}>
-                <RotateCw aria-hidden="true" /> Refresh folder
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {stage && (
         <p role="status" className="flex items-center gap-2 text-sm"><Spinner /> {STAGE_LABEL[stage]}…</p>
       )}
@@ -196,7 +165,7 @@ export function AddFilePanel({
       )}
 
       <div className="flex justify-end">
-        <Button onClick={() => void upload()} disabled={!file || Boolean(problem) || binary === null || blocked || busy}>
+        <Button onClick={() => void upload()} disabled={!file || Boolean(problem) || busy}>
           {busy ? <Spinner /> : <Upload aria-hidden="true" />} Upload
         </Button>
       </div>

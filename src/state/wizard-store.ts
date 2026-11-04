@@ -140,7 +140,7 @@ export const useWizard = create<WizardState>()(
         set({ step: 10, file: null, targetFileName: null, uploadResult: null }),
     }),
     {
-      name: "spsb.wizard.v1",
+      name: "spsb.graph.wizard.v1",
       storage: createJSONStorage(() => sessionStorage),
       // Never persist the File object; persist only safe, non-secret input.
       partialize: (s) => ({

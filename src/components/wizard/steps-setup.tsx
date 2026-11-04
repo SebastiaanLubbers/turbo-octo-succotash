@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { getUser } from "@microsoft/managed-apps/auth";
-import { ArrowRight, ChevronRight, FolderOpen, Globe, Info, Library, Settings2, UserRound } from "lucide-react";
+import { ArrowRight, ChevronRight, FolderOpen, Globe, Library, Settings2, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -14,6 +13,7 @@ import { DEFAULT_QUEUE_FOLDER } from "@/services/upload-flow-service";
 import { validateItemName } from "@/services/validation";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SharePointSiteService, type FolderEntry } from "@/services/sharepoint-site-service";
+import { useBrowserAuth } from "@/services/browser-auth";
 import { toAppError } from "@/services/errors";
 import { useWizard } from "@/state/wizard-store";
 import { splitRel } from "@/state/selectors";
@@ -89,54 +89,23 @@ export function WelcomeStep() {
 // ---------- 2. Microsoft 365 connection ----------
 export function ConnectionStep() {
   const goTo = useWizard((s) => s.goTo);
-  const user = useQuery({
-    queryKey: ["m365-user"],
-    queryFn: async () => {
-      try {
-        return await getUser();
-      } catch (e) {
-        throw toAppError(e, { operation: "getUser", action: "read your Microsoft 365 identity" });
-      }
-    },
-    retry: false,
-    staleTime: Infinity,
-  });
+  const account = useBrowserAuth((state) => state.account);
   return (
-    <StepFrame title="Microsoft 365 connection" onBack={() => goTo(1)} primary={<Button onClick={() => goTo(3)} disabled={user.isPending}>Continue <ArrowRight aria-hidden="true" /></Button>}>
-      {user.isPending && (
-        <div role="status" className="flex items-center gap-3 rounded-lg border p-4">
-          <Spinner /> <span className="text-sm">Reading your Microsoft 365 identity…</span>
-        </div>
-      )}
-      {user.isSuccess && (
+    <StepFrame title="Microsoft 365 connection" onBack={() => goTo(1)} primary={<Button onClick={() => goTo(3)} disabled={!account}>Continue <ArrowRight aria-hidden="true" /></Button>}>
+      {account && (
         <div className="flex items-center gap-4 rounded-lg border bg-card p-4">
           <span className="flex size-10 items-center justify-center rounded-full bg-accent" aria-hidden="true">
             <UserRound className="size-5" />
           </span>
           <div className="min-w-0">
             <p className="text-sm text-muted-foreground">Working as</p>
-            <p className="truncate font-medium">{user.data.fullName || "Signed-in Microsoft 365 user"}</p>
-          </div>
-        </div>
-      )}
-      {user.isError && (
-        <div role="status" className="flex gap-3 rounded-lg border p-4">
-          <Info className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <div className="space-y-2 text-sm">
-            <p className="font-medium">Your name can't be shown here</p>
-            <p>
-              This doesn't block the app: SharePoint is reached through the app's SharePoint connection, and your access is
-              checked when you open a site in the next step.
-            </p>
-            <Button size="sm" variant="outline" onClick={() => user.refetch()} disabled={user.isFetching}>
-              Try again
-            </Button>
+            <p className="truncate font-medium">{account.name || account.username}</p>
           </div>
         </div>
       )}
       <ul className="space-y-2 text-sm">
-        <li>SharePoint is accessed through your own SharePoint connection, with your permissions.</li>
-        <li>The app never asks for or stores passwords or access tokens.</li>
+        <li>SharePoint is accessed with your own Microsoft 365 account and permissions.</li>
+        <li>Microsoft handles sign-in; your browser keeps the session until you sign out or close the tab.</li>
         <li>Only the chosen site address, library and folder are saved, in this browser.</li>
       </ul>
     </StepFrame>

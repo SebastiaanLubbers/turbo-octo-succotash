@@ -1,8 +1,8 @@
 // SharePointFolderService — existence checks and controlled, idempotent folder
 // creation. Every requested folder returns exactly one FolderResult.
-import { SharePointService } from "../../generated/services/SharePointService";
 import type { FolderResult, FolderTemplate, ProjectInput, SharePointConfiguration } from "@/models";
-import { AppError, statusOf, toAppError } from "./errors";
+import { AppError, toAppError } from "./errors";
+import { GraphItemNotFoundError, GraphSharePoint } from "./graph-sharepoint";
 import { buildRootFolderName, joinPath, validateItemName } from "./validation";
 
 export interface PlannedFolder {
@@ -38,15 +38,16 @@ export type FolderExistence = "exists" | "missing";
 export const SharePointFolderService = {
   /** "exists" or "missing"; throws AppError for anything that is not a clear answer. */
   async folderExists(siteUrl: string, serverPath: string): Promise<FolderExistence> {
-    const result = await SharePointService.GetFolderMetadataByPath(siteUrl, serverPath);
-    if (result.success) {
-      if (result.data && result.data.IsFolder === false) {
+    try {
+      const item = await GraphSharePoint.itemAtPath(siteUrl, serverPath);
+      if (!item.folder) {
         throw new AppError("conflict", "A file with this name already exists in that location, so a folder can't be created there.", "GetFolderMetadataByPath returned a file", 409);
       }
       return "exists";
+    } catch (error) {
+      if (error instanceof GraphItemNotFoundError) return "missing";
+      throw toAppError(error, { operation: "GetFolderMetadataByPath", action: "check whether the folder exists" });
     }
-    if (statusOf(result.error) === 404) return "missing";
-    throw toAppError(result.error, { operation: "GetFolderMetadataByPath", action: "check whether the folder exists" });
   },
 
   /**
@@ -97,9 +98,14 @@ export const SharePointFolderService = {
       if (before === "exists") {
         return { ...base(folder), status: "Already exists", message: "Folder was already there and was kept as is." };
       }
-      const created = await SharePointService.CreateNewFolder(config.site.url, config.library.id, { path: folder.relativePath });
-      if (!created.success) {
-        const err = toAppError(created.error, { operation: "CreateNewFolder", action: "create this folder" });
+      const location = await GraphSharePoint.resolvePath(config.site.url, folder.serverPath);
+      if (location.driveId !== config.library.id || location.relativePath !== folder.relativePath) {
+        throw new AppError("validation", "The saved SharePoint location has changed. Choose the location again.", "The selected library does not match the requested folder path");
+      }
+      try {
+        await GraphSharePoint.createFolder(config.library.id, folder.relativePath);
+      } catch (error) {
+        const err = toAppError(error, { operation: "CreateNewFolder", action: "create this folder" });
         // A parallel run may have created it in the meantime: re-check before reporting failure.
         if (err.kind === "conflict" && (await this.folderExists(config.site.url, folder.serverPath)) === "exists") {
           return { ...base(folder), status: "Already exists", message: "Folder was created by someone else in the meantime and was kept." };

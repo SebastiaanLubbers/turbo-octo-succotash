@@ -2,7 +2,7 @@
 
 A wizard that lets a signed-in Microsoft 365 user pick a SharePoint location,
 create a standard project folder structure and upload one document into it.
-TypeScript + React, running on the Microsoft Copilot managed app runtime.
+TypeScript + React, using browser sign-in and Microsoft Graph.
 
 ## Run and check
 
@@ -11,6 +11,7 @@ bun install
 bun run dev         # local dev server
 bun run typecheck   # TypeScript only
 bun run lint
+node --test tests/graph-sharepoint.test.mjs
 ```
 
 Open the folder in Visual Studio Code; recommended extensions are listed in
@@ -44,20 +45,44 @@ same rules as user input (`validateItemName`).
 
 ## Authentication and data access
 
-* All SharePoint calls go through the app's bound SharePoint Online connector
-  (`generated/services/SharePointService.ts`) using the signed-in user's own
-  connection and permissions. The app never handles passwords or tokens.
-* The connector binding lives in `ms.config.json` (`connectionReferences`) and
-  is managed by the App Builder tooling — never edit it by hand.
+* Register a Microsoft Entra application for the intended tenant or tenants.
+  Add a **Single-page application** redirect URI for the exact deployed callback,
+  for example `http://localhost:5173/auth-callback.html` locally or
+  `https://OWNER.github.io/REPOSITORY/auth-callback.html` on GitHub Pages.
+* Add Microsoft Graph delegated permissions `User.Read` and
+  `Sites.ReadWrite.All`; obtain tenant admin consent when required. The latter
+  is broad: it grants the app delegated read/write access to the site collections
+  the user can access. SharePoint permissions and organizational policies still apply.
+* Set `VITE_ENTRA_CLIENT_ID` to the application (client) ID and
+  `VITE_ENTRA_TENANT_ID` to the directory (tenant) ID before building or running.
+  If the tenant ID is omitted, `organizations` is used for a multitenant app.
+  These settings are public build-time values, not secrets. Never put a client
+  secret in the frontend. Rebuild when changing them.
+* MSAL uses a popup with a passive same-origin callback and sessionStorage;
+  popup blocking, cross-origin opener policies, and embedded browser restrictions
+  can prevent sign-in. Sign out clears this app's local MSAL cache; it does not
+  sign the user out of Microsoft globally.
+* Microsoft Graph performs the SharePoint requests with delegated access tokens.
+  The managed connector binding in `ms.config.json` is not used by these workflows.
+
+## GitHub Pages
+
+Set `VITE_BASE=/REPOSITORY/` (or `/` for a root-domain site) and the Entra
+variables when building, then publish the contents of `dist`. Register the
+matching callback URI in Entra. The app uses browser history routes, so direct
+requests or refreshes at `/projects` need an SPA fallback; GitHub Pages does not
+provide one by default. Configure a compatible fallback or navigate from the
+root page. Confirm your organization permits publishing the frontend publicly.
 
 ## Configuration and multi-customer deployment
 
-No tenant ID, hostname, site, library or folder identifier is in the source.
+The app registration is supplied at build time; no site, library or folder is hard-coded.
 The setup wizard stores the chosen site URL, library and parent folder
 (non-secret metadata only) in the browser's `localStorage` under
-`spsb.configuration.v1`. In another customer environment, deploy the same
-source, let the user create their own SharePoint connection, and run the setup
-wizard. "Change configuration" re-runs it at any time.
+`spsb.graph.configuration.v1`. Graph uses different library and folder IDs from
+the managed connector, so existing users must select their location again.
+In another customer environment, deploy with an app registration approved by
+that tenant and run the setup wizard. "Change configuration" re-runs it at any time.
 
 In-progress wizard input (selections, project fields, results — not the
 selected file) is kept in `sessionStorage` so it survives going back and a
@@ -79,23 +104,14 @@ reload after re-authentication.
   again right before upload. On a duplicate the user can upload under the next
   free name (`name (2).ext`) or pick another file/folder. Overwrite is not
   implemented.
-* **Binary files via Power Automate:** the app's SharePoint connection sends
-  request bodies as UTF-8 text, so PDF/Office/image files can't be written
-  directly. When the configuration enables the upload flow, the app writes an
-  upload request (JSON with base64 content) as a text file into the queue
-  folder; the "SPSB Upload" flow writes the real file through Microsoft Graph
-  with credentials from Azure Key Vault and writes a result file back. The app
-  then verifies the file and its size. Without the flow, binary files are
-  blocked before any SharePoint call and the user is sent to SharePoint.
-  See `FLOW-SETUP.md`.
-* **Upload verification:** after `CreateFile` the app reads the file's metadata
-  and compares the stored size with the local size. On a mismatch it removes
-  the file it just created (the name was free moments earlier) and reports
-  *Failed*. Uploads are limited to 25 MB (`MAX_UPLOAD_BYTES`).
+* **Upload verification:** binary and text files are uploaded using Graph upload
+  sessions with conflict behavior `fail`. The app checks the returned item ID
+  and stored size against the local file; it never deletes a mismatched item.
+  Uploads are limited to 25 MB (`MAX_UPLOAD_BYTES`). A failed or interrupted
+  upload may leave an uncommitted upload session until Microsoft expires it.
 * **Errors:** `toAppError` maps HTTP 401/403/404/409/429/5xx and policy blocks
   to business messages. Raw connector errors go only to the browser console;
   the UI shows a short diagnostic (operation, HTTP status, time) under
   "Details for support".
-* **Site discovery:** the SharePoint connector operations available to the app
-  don't include a tenant-wide site search, so the user enters a site address
-  (validated by reading its lists) and recently used sites are offered.
+* **Site discovery:** the user enters a site address (validated through Graph)
+  and recently used sites are offered.

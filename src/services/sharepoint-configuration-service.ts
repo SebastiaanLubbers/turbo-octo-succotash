@@ -5,7 +5,7 @@
 // the wizard against their own tenant.
 import type { SharePointConfiguration } from "@/models";
 
-const STORAGE_KEY = "spsb.configuration.v1";
+const STORAGE_KEY = "spsb.graph.configuration.v1";
 const RECENT_SITES_KEY = "spsb.recentSites.v1";
 
 function isConfiguration(value: unknown): value is SharePointConfiguration {

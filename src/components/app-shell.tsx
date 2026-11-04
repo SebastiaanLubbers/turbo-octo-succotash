@@ -1,10 +1,13 @@
+import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { FolderTree, Settings2 } from "lucide-react";
+import { FolderTree, LogIn, LogOut, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import { routes } from "@/routes";
 import { useWizard } from "@/state/wizard-store";
 import { cn } from "@/lib/utils";
+import { queryClient } from "@/lib/query-client";
+import { useBrowserAuth } from "@/services/browser-auth";
 
 // App frame: product identity, page navigation and the global "change configuration" control.
 export function AppShell() {
@@ -14,7 +17,29 @@ export function AppShell() {
   const startReconfigure = useWizard((s) => s.startReconfigure);
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const { ready, account, error, initialize, signIn, signOut } = useBrowserAuth();
+  const [authBusy, setAuthBusy] = useState(false);
   const showReconfigure = Boolean(config) && (pathname !== "/" || step >= 6);
+  useEffect(() => { void initialize(); }, [initialize]);
+
+  if (!ready || !account) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <main className="w-full max-w-md space-y-5 rounded-lg border bg-card p-6">
+          <div className="flex items-center gap-3">
+            <span className="flex size-10 items-center justify-center rounded-md bg-primary text-primary-foreground"><FolderTree className="size-5" aria-hidden="true" /></span>
+            <h1 className="text-lg font-semibold">SharePoint Structure Builder</h1>
+          </div>
+          {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+          <Button disabled={!ready || authBusy || Boolean(error?.includes("not configured"))} onClick={() => {
+            setAuthBusy(true);
+            void signIn().finally(() => setAuthBusy(false));
+          }}><LogIn aria-hidden="true" /> {authBusy ? "Signing in..." : "Sign in with Microsoft"}</Button>
+        </main>
+        <Toaster />
+      </div>
+    );
+  }
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <a
@@ -55,6 +80,7 @@ export function AppShell() {
                 );
               })}
           </nav>
+          {error && <span role="alert" className="text-sm text-destructive">{error}</span>}
           {showReconfigure && (
             <Button
               variant="ghost"
@@ -70,6 +96,10 @@ export function AppShell() {
               <span className="sr-only md:hidden">Change configuration</span>
             </Button>
           )}
+          <Button variant="ghost" size="sm" className={showReconfigure ? "" : "ml-auto"} disabled={busy || authBusy} onClick={() => {
+            setAuthBusy(true);
+            void signOut().then(() => queryClient.clear()).finally(() => setAuthBusy(false));
+          }} title="Sign out of this app"><LogOut aria-hidden="true" /><span className="hidden md:inline">Sign out</span><span className="sr-only md:hidden">Sign out</span></Button>
         </div>
       </header>
       <main className="flex flex-1 flex-col">
