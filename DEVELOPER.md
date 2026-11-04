@@ -68,12 +68,23 @@ same rules as user input (`validateItemName`).
 
 ## GitHub Pages
 
-Set `VITE_BASE=/REPOSITORY/` (or `/` for a root-domain site) and the Entra
-variables when building, then publish the contents of `dist`. Register the
-matching callback URI in Entra. The app uses browser history routes, so direct
-requests or refreshes at `/projects` need an SPA fallback; GitHub Pages does not
-provide one by default. Configure a compatible fallback or navigate from the
-root page. Confirm your organization permits publishing the frontend publicly.
+The Pages workflow builds and deploys a repository project site when a commit
+reaches `main`. It can also be started manually from the Actions tab.
+
+1. In repository **Settings > Pages**, set the source to **GitHub Actions**.
+2. Under **Settings > Secrets and variables > Actions > Variables**, add
+   `VITE_ENTRA_CLIENT_ID` and optionally `VITE_ENTRA_TENANT_ID`. These IDs are
+   public build-time values, not client secrets. The tenant defaults to
+   `organizations` when omitted.
+3. Register `https://OWNER.github.io/REPOSITORY/auth-callback.html` as a
+   **Single-page application** redirect URI in Entra, and grant the delegated
+   Microsoft Graph permissions described above.
+4. Push to `main` or run the workflow manually. The workflow builds with
+   `VITE_BASE=/REPOSITORY/` and publishes `dist` to the project site.
+
+The app uses browser history routes. Navigation from the root works, but direct
+requests or refreshes at `/projects` return a Pages 404 without a separate SPA
+fallback. Confirm your organization permits publishing the frontend publicly.
 
 ## Configuration and multi-customer deployment
 
