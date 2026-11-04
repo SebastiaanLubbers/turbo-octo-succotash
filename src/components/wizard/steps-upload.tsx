@@ -173,8 +173,6 @@ const STAGE_LABEL: Record<UploadStage, string> = {
   reading: "Reading the file",
   checking: "Checking the destination for an existing file",
   uploading: "Uploading to SharePoint",
-  "handing-over": "Handing the file to the upload flow",
-  processing: "The upload flow is storing the file (this can take a minute)",
   verifying: "Verifying the file in SharePoint",
   done: "Done",
 };
@@ -182,8 +180,6 @@ const STAGE_PCT: Record<UploadStage, number> = {
   reading: 10,
   checking: 25,
   uploading: 60,
-  "handing-over": 40,
-  processing: 65,
   verifying: 90,
   done: 100,
 };
@@ -273,7 +269,7 @@ export function UploadConfirmStep() {
     setBusy(true);
     try {
       const result = await SharePointFileService.upload(
-        config!,
+        config!.site.url,
         {
           file: file!,
           folderServerPath: folder!.serverPath,

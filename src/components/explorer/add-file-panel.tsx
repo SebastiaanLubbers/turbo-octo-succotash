@@ -9,7 +9,6 @@ import { toAppError } from "@/services/errors";
 import {
   SharePointFileService,
   fileServerPath,
-  flowUploadsEnabled,
   validateLocalFile,
   type UploadStage,
 } from "@/services/sharepoint-file-service";
@@ -21,8 +20,6 @@ const STAGE_LABEL: Record<UploadStage, string> = {
   reading: "Reading the file",
   checking: "Checking for an existing file",
   uploading: "Uploading to SharePoint",
-  "handing-over": "Handing the file to the upload flow",
-  processing: "The upload flow is storing the file (this can take a minute)",
   verifying: "Verifying the file in SharePoint",
   done: "Done",
 };
@@ -68,8 +65,17 @@ export function AddFilePanel({
     try {
       let name = file.name;
       setStage("checking");
-      if (await SharePointFileService.fileExists(config.site.url, fileServerPath(folderServerPath, name))) {
-        const suggestion = await SharePointFileService.suggestAvailableName(config.site.url, folderServerPath, name);
+      if (
+        await SharePointFileService.fileExists(
+          config.site.url,
+          fileServerPath(folderServerPath, name),
+        )
+      ) {
+        const suggestion = await SharePointFileService.suggestAvailableName(
+          config.site.url,
+          folderServerPath,
+          name,
+        );
         const ok = await confirm({
           title: "Duplicate filename",
           description: `"${name}" already exists in this folder and won't be overwritten. Upload it as "${suggestion}" instead?`,
@@ -86,8 +92,13 @@ export function AddFilePanel({
         if (!ok) return;
       }
       const r = await SharePointFileService.upload(
-        config,
-        { file, folderServerPath, folderRelativePath: "", targetFileName: name },
+        config.site.url,
+        {
+          file,
+          folderServerPath,
+          folderRelativePath: "",
+          targetFileName: name,
+        },
         setStage,
       );
       setResult(r);
@@ -96,7 +107,12 @@ export function AddFilePanel({
         onUploaded();
       }
     } catch (e) {
-      setError(toAppError(e, { operation: "GetFileMetadataByPath", action: "check the destination" }));
+      setError(
+        toAppError(e, {
+          operation: "GetFileMetadataByPath",
+          action: "check the destination",
+        }),
+      );
     } finally {
       setBusy(false);
       setStage(null);
@@ -104,13 +120,26 @@ export function AddFilePanel({
   }
 
   return (
-    <section aria-labelledby="add-file-title" className="space-y-4 rounded-lg border bg-card p-4">
+    <section
+      aria-labelledby="add-file-title"
+      className="space-y-4 rounded-lg border bg-card p-4"
+    >
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <h2 id="add-file-title" className="font-semibold">Add file</h2>
-          <div className="mt-1"><PathLine parts={pathParts} /></div>
+          <h2 id="add-file-title" className="font-semibold">
+            Add file
+          </h2>
+          <div className="mt-1">
+            <PathLine parts={pathParts} />
+          </div>
         </div>
-        <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close add file" disabled={busy}>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onClose}
+          aria-label="Close add file"
+          disabled={busy}
+        >
           <X aria-hidden="true" />
         </Button>
       </div>
@@ -127,27 +156,43 @@ export function AddFilePanel({
         }}
       />
       <div className="flex flex-wrap items-center gap-4">
-        <Button variant="outline" onClick={() => inputRef.current?.click()} disabled={busy}>
-          <FileUp aria-hidden="true" /> {file ? "Choose another file" : "Choose file"}
+        <Button
+          variant="outline"
+          onClick={() => inputRef.current?.click()}
+          disabled={busy}
+        >
+          <FileUp aria-hidden="true" />{" "}
+          {file ? "Choose another file" : "Choose file"}
         </Button>
         {file ? (
           <p className="min-w-0 text-sm">
             <span className="font-medium break-all">{file.name}</span>
-            <span className="text-muted-foreground"> · {file.type || "unknown type"} · {formatBytes(file.size)}</span>
+            <span className="text-muted-foreground">
+              {" "}
+              · {file.type || "unknown type"} · {formatBytes(file.size)}
+            </span>
           </p>
         ) : (
           <p className="text-sm">No file selected.</p>
         )}
       </div>
-      {file && problem && <p className="text-sm text-red-700 dark:text-red-300">{problem}</p>}
+      {file && problem && (
+        <p className="text-sm text-red-700 dark:text-red-300">{problem}</p>
+      )}
 
       {stage && (
-        <p role="status" className="flex items-center gap-2 text-sm"><Spinner /> {STAGE_LABEL[stage]}…</p>
+        <p role="status" className="flex items-center gap-2 text-sm">
+          <Spinner /> {STAGE_LABEL[stage]}…
+        </p>
       )}
       {error !== null && <ErrorPanel error={error} />}
       {result && result.status === "Uploaded" && (
-        <p role="status" className="flex items-center gap-2 text-sm text-green-800 dark:text-green-200">
-          <CheckCircle2 className="size-4" aria-hidden="true" /> {result.fileName} uploaded. {result.message}
+        <p
+          role="status"
+          className="flex items-center gap-2 text-sm text-green-800 dark:text-green-200"
+        >
+          <CheckCircle2 className="size-4" aria-hidden="true" />{" "}
+          {result.fileName} uploaded. {result.message}
         </p>
       )}
       {result && result.status !== "Uploaded" && (
@@ -160,12 +205,19 @@ export function AddFilePanel({
           }
         >
           <p>{result.message}</p>
-          {result.diagnostic && <p className="mt-1 font-mono text-xs">Support: {result.diagnostic}</p>}
+          {result.diagnostic && (
+            <p className="mt-1 font-mono text-xs">
+              Support: {result.diagnostic}
+            </p>
+          )}
         </div>
       )}
 
       <div className="flex justify-end">
-        <Button onClick={() => void upload()} disabled={!file || Boolean(problem) || busy}>
+        <Button
+          onClick={() => void upload()}
+          disabled={!file || Boolean(problem) || busy}
+        >
           {busy ? <Spinner /> : <Upload aria-hidden="true" />} Upload
         </Button>
       </div>
