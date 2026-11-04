@@ -2,11 +2,12 @@
 // Never overwrites: the destination name is checked right before the upload and
 // the upload is refused when a file with that name exists.
 import { SharePointService } from "../../generated/services/SharePointService";
-import type { UploadInput, UploadResult } from "@/models";
+import type { SharePointConfiguration, UploadInput, UploadResult } from "@/models";
+import { UploadFlowService } from "./upload-flow-service";
 import { AppError, statusOf, toAppError } from "./errors";
 import { MAX_UPLOAD_BYTES, formatBytes, validateItemName } from "./validation";
 
-export type UploadStage = "reading" | "checking" | "uploading" | "verifying" | "done";
+export type UploadStage = "reading" | "checking" | "uploading" | "handing-over" | "processing" | "verifying" | "done";
 
 export function fileServerPath(folderServerPath: string, fileName: string): string {
   return `${folderServerPath.replace(/\/+$/, "")}/${fileName}`;
@@ -45,7 +46,12 @@ export async function canUploadInApp(file: File): Promise<boolean> {
 }
 
 export const BINARY_NOT_SUPPORTED_MESSAGE =
-  "This file type can't be uploaded from the app: the SharePoint connection available to it only transfers text files (such as TXT, CSV, JSON or XML). Open the destination folder in SharePoint and upload the file there.";
+  "This file type can't be uploaded from the app yet: its SharePoint connection only transfers text files (such as TXT, CSV, JSON or XML). Open the destination folder in SharePoint and upload the file there, or ask your administrator to enable the Power Automate upload flow.";
+
+/** True when the configuration routes binary files through the Power Automate upload flow. */
+export function flowUploadsEnabled(config: SharePointConfiguration | null | undefined): boolean {
+  return Boolean(config?.uploadFlow?.queueFolder);
+}
 
 export const SharePointFileService = {
   async fileExists(siteUrl: string, serverPath: string): Promise<boolean> {
@@ -65,7 +71,8 @@ export const SharePointFileService = {
     throw new AppError("conflict", "Too many files with this name already exist in the folder. Rename the file on your computer and try again.", "suggestAvailableName exhausted 50 candidates", 409);
   },
 
-  async upload(siteUrl: string, input: UploadInput, onStage: (s: UploadStage) => void): Promise<UploadResult> {
+  async upload(config: SharePointConfiguration, input: UploadInput, onStage: (s: UploadStage) => void): Promise<UploadResult> {
+    const siteUrl = config.site.url;
     const serverPath = fileServerPath(input.folderServerPath, input.targetFileName);
     const baseResult = { fileName: input.targetFileName, serverPath, sizeBytes: input.file.size };
 
@@ -74,8 +81,9 @@ export const SharePointFileService = {
 
     try {
       onStage("reading");
-      const text = asExactText(new Uint8Array(await input.file.arrayBuffer()));
-      if (text === null) {
+      const bytes = new Uint8Array(await input.file.arrayBuffer());
+      const text = asExactText(bytes);
+      if (text === null && !flowUploadsEnabled(config)) {
         return { ...baseResult, status: "Blocked", binary: true, message: BINARY_NOT_SUPPORTED_MESSAGE };
       }
 
@@ -87,6 +95,11 @@ export const SharePointFileService = {
           duplicate: true,
           message: `A file named "${input.targetFileName}" already exists in this folder. Nothing was overwritten. Choose a new name or another folder.`,
         };
+      }
+
+      if (text === null) {
+        // Binary file: handed to the Power Automate upload flow (credentials in Azure Key Vault).
+        return await UploadFlowService.upload(config, bytes, input.file, input.folderServerPath, input.targetFileName, onStage);
       }
 
       onStage("uploading");

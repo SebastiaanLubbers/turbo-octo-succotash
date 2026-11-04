@@ -11,6 +11,7 @@ import type {
   ProjectInput,
   SharePointConfiguration,
   SharePointSite,
+  UploadFlowSettings,
   UploadResult,
 } from "@/models";
 import { SharePointConfigurationService } from "@/services/sharepoint-configuration-service";
@@ -40,6 +41,7 @@ interface WizardState {
   site: SharePointSite | null;
   library: DocumentLibrary | null;
   parent: ParentLocation | null;
+  uploadFlow: UploadFlowSettings | null;
   // Project
   project: ProjectInput;
   templateId: string;
@@ -57,6 +59,7 @@ interface WizardState {
   setSite: (site: SharePointSite | null) => void;
   setLibrary: (library: DocumentLibrary | null) => void;
   setParent: (parent: ParentLocation | null) => void;
+  setUploadFlow: (uploadFlow: UploadFlowSettings | null) => void;
   saveConfiguration: () => void;
   startReconfigure: () => void;
   setProject: (patch: Partial<ProjectInput>) => void;
@@ -80,6 +83,7 @@ export const useWizard = create<WizardState>()(
       site: null,
       library: null,
       parent: null,
+      uploadFlow: null,
       project: emptyProject,
       templateId: DEFAULT_TEMPLATE_ID,
       folderResults: null,
@@ -96,10 +100,11 @@ export const useWizard = create<WizardState>()(
       setLibrary: (library) =>
         set((s) => (s.library?.id === library?.id ? { library } : { library, parent: null })),
       setParent: (parent) => set({ parent }),
+      setUploadFlow: (uploadFlow) => set({ uploadFlow }),
       saveConfiguration: () => {
-        const { site, library, parent } = get();
+        const { site, library, parent, uploadFlow } = get();
         if (!site || !library || !parent) return;
-        const config = SharePointConfigurationService.save({ site, library, parent });
+        const config = SharePointConfigurationService.save({ site, library, parent, ...(uploadFlow ? { uploadFlow } : {}) });
         // A new location invalidates results that belonged to the previous one.
         set({ config, step: 6, folderResults: null, destinationServerPath: null, uploadResult: null });
       },
@@ -110,6 +115,7 @@ export const useWizard = create<WizardState>()(
           site: config?.site ?? null,
           library: config?.library ?? null,
           parent: config?.parent ?? null,
+          uploadFlow: config?.uploadFlow ?? null,
         });
       },
       setProject: (patch) =>
@@ -142,6 +148,7 @@ export const useWizard = create<WizardState>()(
         site: s.site,
         library: s.library,
         parent: s.parent,
+        uploadFlow: s.uploadFlow,
         project: s.project,
         templateId: s.templateId,
         folderResults: s.folderResults,

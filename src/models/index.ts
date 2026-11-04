@@ -30,12 +30,24 @@ export interface ParentLocation {
   serverPath: string;
 }
 
+/**
+ * Optional hand-off to the "SPSB Upload" Power Automate flow, used for files the
+ * app's own SharePoint connection can't transfer (PDF, Office, images).
+ * Only a folder name: the flow's credentials live in Azure Key Vault, never here.
+ */
+export interface UploadFlowSettings {
+  /** Queue folder directly under the library root, e.g. "_UploadQueue". */
+  queueFolder: string;
+}
+
 /** Saved, non-secret configuration. Stored per user in the browser; never in source code. */
 export interface SharePointConfiguration {
   version: 1;
   site: SharePointSite;
   library: DocumentLibrary;
   parent: ParentLocation;
+  /** Present when uploads through the Power Automate flow are enabled. */
+  uploadFlow?: UploadFlowSettings;
   savedAt: string;
 }
 
@@ -79,7 +91,8 @@ export interface UploadInput {
   targetFileName: string;
 }
 
-export type UploadStatus = "Uploaded" | "Failed" | "Blocked";
+/** Pending: handed to the upload flow, which had not finished when the app stopped waiting. */
+export type UploadStatus = "Uploaded" | "Failed" | "Blocked" | "Pending";
 
 export interface UploadResult {
   status: UploadStatus;

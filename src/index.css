@@ -42,7 +42,14 @@
   &::-webkit-scrollbar { display: none; }
 }
 
-@custom-variant dark (&:is(.dark *));
+/* dark: utilities follow an explicit .dark class AND the OS dark preference
+   (the same rule the color tokens use), unless <html class="light"> opts out. */
+@custom-variant dark {
+  &:where(.dark, .dark *) { @slot; }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not(.light), :root:not(.light) *) { @slot; }
+  }
+}
 
 :root {
   --background: oklch(1 0 0);

@@ -6,7 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Spinner } from "@/components/ui/spinner";
 import type { FolderResult } from "@/models";
-import { BINARY_NOT_SUPPORTED_MESSAGE, SharePointFileService, canUploadInApp, fileServerPath, validateLocalFile, type UploadStage } from "@/services/sharepoint-file-service";
+import { BINARY_NOT_SUPPORTED_MESSAGE, SharePointFileService, canUploadInApp, fileServerPath, flowUploadsEnabled, validateLocalFile, type UploadStage } from "@/services/sharepoint-file-service";
 import { toAppError } from "@/services/errors";
 import { formatBytes } from "@/services/validation";
 import { sharePointLink, splitRel } from "@/state/selectors";
@@ -53,7 +53,8 @@ export function UploadStep() {
     staleTime: Infinity,
     retry: false,
   });
-  const binary = transferable.data === false;
+  const viaFlow = transferable.data === false && flowUploadsEnabled(config);
+  const binary = transferable.data === false && !flowUploadsEnabled(config);
 
   // After a manual upload in SharePoint, the user can confirm the file arrived.
   const [presence, setPresence] = useState<{ state: "idle" | "checking" | "found" | "missing" | "error"; error?: unknown }>({ state: "idle" });
@@ -78,7 +79,7 @@ export function UploadStep() {
           disabled={binary || (Boolean(file) && transferable.isPending && !fileProblem)}
           onClick={() => {
             setSubmitted(true);
-            if (!fileProblem && destinationValid && transferable.data === true) goTo(11);
+            if (!fileProblem && destinationValid && (transferable.data === true || viaFlow)) goTo(11);
           }}
         >
           Review upload <ArrowRight aria-hidden="true" />
@@ -119,6 +120,9 @@ export function UploadStep() {
         </div>
         {transferable.isPending && file && !fileProblem && (
           <p role="status" className="flex items-center gap-2 text-sm"><Spinner /> Checking the file…</p>
+        )}
+        {viaFlow && !fileProblem && (
+          <p className="text-sm">This file is uploaded through the Power Automate upload flow.</p>
         )}
         {(submitted || file) && fileProblem && (
           <p id="file-error" className="text-sm text-red-700 dark:text-red-300">{fileProblem}</p>
@@ -184,10 +188,12 @@ const STAGE_LABEL: Record<UploadStage, string> = {
   reading: "Reading the file",
   checking: "Checking the destination for an existing file",
   uploading: "Uploading to SharePoint",
+  "handing-over": "Handing the file to the upload flow",
+  processing: "The upload flow is storing the file (this can take a minute)",
   verifying: "Verifying the file in SharePoint",
   done: "Done",
 };
-const STAGE_PCT: Record<UploadStage, number> = { reading: 10, checking: 25, uploading: 60, verifying: 90, done: 100 };
+const STAGE_PCT: Record<UploadStage, number> = { reading: 10, checking: 25, uploading: 60, "handing-over": 40, processing: 65, verifying: 90, done: 100 };
 
 // ---------- 11. Upload confirmation ----------
 export function UploadConfirmStep() {
@@ -250,7 +256,7 @@ export function UploadConfirmStep() {
     setBusy(true);
     try {
       const result = await SharePointFileService.upload(
-        config!.site.url,
+        config!,
         { file: file!, folderServerPath: folder!.serverPath, folderRelativePath: folder!.relativePath, targetFileName: name },
         setStage,
       );
@@ -359,6 +365,7 @@ export function UploadResultStep() {
     );
   }
   const ok = result.status === "Uploaded";
+  const pending = result.status === "Pending";
   const folderPath = result.serverPath.slice(0, result.serverPath.lastIndexOf("/"));
   const root = folderResults?.[0];
   const created = (folderResults ?? []).filter((r) => r?.status === "Created").length;
@@ -379,17 +386,19 @@ export function UploadResultStep() {
       }
     >
       <div
-        role={ok ? "status" : "alert"}
+        role={ok || pending ? "status" : "alert"}
         className={
           ok
             ? "flex gap-3 rounded-lg border border-green-200 bg-green-50 p-4 text-green-950 dark:border-green-800 dark:bg-green-950 dark:text-green-100"
-            : "flex gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-red-950 dark:border-red-800 dark:bg-red-950 dark:text-red-100"
+            : pending
+              ? "flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-950 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100"
+              : "flex gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-red-950 dark:border-red-800 dark:bg-red-950 dark:text-red-100"
         }
       >
         {ok ? <CheckCircle2 className="mt-0.5 size-5 shrink-0" aria-hidden="true" /> : <XCircle className="mt-0.5 size-5 shrink-0" aria-hidden="true" />}
         <div className="space-y-1 text-sm">
           <p className="flex flex-wrap items-center gap-2 font-medium">
-            {ok ? "Upload complete" : result.status === "Blocked" ? "Upload blocked" : "Upload failed"} <StatusBadge status={result.status} />
+            {ok ? "Upload complete" : pending ? "Upload pending" : result.status === "Blocked" ? "Upload blocked" : "Upload failed"} <StatusBadge status={result.status} />
           </p>
           <p>{result.message}</p>
           {result.diagnostic && <p className="font-mono text-xs">Support: {result.diagnostic}</p>}
@@ -412,7 +421,7 @@ export function UploadResultStep() {
       </dl>
 
       <div className="flex flex-wrap gap-4">
-        {ok && (
+        {(ok || pending) && (
           <a href={safeUrl(sharePointLink(config.site.url, folderPath)) ?? "#"} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-ring">
             Open folder in SharePoint <ExternalLink className="size-3.5" aria-hidden="true" />
           </a>

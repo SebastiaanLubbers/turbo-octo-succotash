@@ -12,6 +12,7 @@ import {
   SharePointFileService,
   canUploadInApp,
   fileServerPath,
+  flowUploadsEnabled,
   validateLocalFile,
   type UploadStage,
 } from "@/services/sharepoint-file-service";
@@ -24,6 +25,8 @@ const STAGE_LABEL: Record<UploadStage, string> = {
   reading: "Reading the file",
   checking: "Checking for an existing file",
   uploading: "Uploading to SharePoint",
+  "handing-over": "Handing the file to the upload flow",
+  processing: "The upload flow is storing the file (this can take a minute)",
   verifying: "Verifying the file in SharePoint",
   done: "Done",
 };
@@ -55,6 +58,8 @@ export function AddFilePanel({
   const [error, setError] = useState<unknown>(null);
   const [result, setResult] = useState<UploadResult | null>(null);
   const problem = validateLocalFile(file);
+  const blocked = binary === true && !flowUploadsEnabled(config);
+  const viaFlow = binary === true && flowUploadsEnabled(config);
   const folderLink = safeUrl(sharePointLink(config.site.url, folderServerPath)) ?? "#";
 
   async function pick(f: File | null) {
@@ -91,7 +96,7 @@ export function AddFilePanel({
         if (!ok) return;
       }
       const r = await SharePointFileService.upload(
-        config.site.url,
+        config,
         { file, folderServerPath, folderRelativePath: "", targetFileName: name },
         setStage,
       );
@@ -146,7 +151,8 @@ export function AddFilePanel({
       </div>
       {file && problem && <p className="text-sm text-red-700 dark:text-red-300">{problem}</p>}
 
-      {binary === true && (
+      {viaFlow && !problem && <p className="text-sm">This file is uploaded through the Power Automate upload flow.</p>}
+      {blocked && (
         <div role="alert" className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <div className="space-y-2">
@@ -176,14 +182,21 @@ export function AddFilePanel({
         </p>
       )}
       {result && result.status !== "Uploaded" && (
-        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-100">
+        <div
+          role={result.status === "Pending" ? "status" : "alert"}
+          className={
+            result.status === "Pending"
+              ? "rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100"
+              : "rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-100"
+          }
+        >
           <p>{result.message}</p>
           {result.diagnostic && <p className="mt-1 font-mono text-xs">Support: {result.diagnostic}</p>}
         </div>
       )}
 
       <div className="flex justify-end">
-        <Button onClick={() => void upload()} disabled={!file || Boolean(problem) || binary !== false || busy}>
+        <Button onClick={() => void upload()} disabled={!file || Boolean(problem) || binary === null || blocked || busy}>
           {busy ? <Spinner /> : <Upload aria-hidden="true" />} Upload
         </Button>
       </div>

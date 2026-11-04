@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getUser } from "@microsoft/managed-apps/auth";
-import { ArrowRight, ChevronRight, FolderOpen, Globe, Library, Settings2, UserRound } from "lucide-react";
+import { ArrowRight, ChevronRight, FolderOpen, Globe, Info, Library, Settings2, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -10,6 +10,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/states";
 import { SharePointConfigurationService } from "@/services/sharepoint-configuration-service";
+import { DEFAULT_QUEUE_FOLDER } from "@/services/upload-flow-service";
+import { validateItemName } from "@/services/validation";
+import { Checkbox } from "@/components/ui/checkbox";
 import { SharePointSiteService, type FolderEntry } from "@/services/sharepoint-site-service";
 import { toAppError } from "@/services/errors";
 import { useWizard } from "@/state/wizard-store";
@@ -117,14 +120,22 @@ export function ConnectionStep() {
         </div>
       )}
       {user.isError && (
-        <ErrorPanel
-          title="Microsoft 365 identity unavailable"
-          error={user.error}
-          action={<Button size="sm" variant="outline" onClick={() => user.refetch()}>Try again</Button>}
-        />
+        <div role="status" className="flex gap-3 rounded-lg border p-4">
+          <Info className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <div className="space-y-2 text-sm">
+            <p className="font-medium">Your name can't be shown here</p>
+            <p>
+              This doesn't block the app: SharePoint is reached through the app's SharePoint connection, and your access is
+              checked when you open a site in the next step.
+            </p>
+            <Button size="sm" variant="outline" onClick={() => user.refetch()} disabled={user.isFetching}>
+              Try again
+            </Button>
+          </div>
+        </div>
       )}
       <ul className="space-y-2 text-sm">
-        <li>SharePoint is accessed with your own Microsoft 365 account and permissions.</li>
+        <li>SharePoint is accessed through your own SharePoint connection, with your permissions.</li>
         <li>The app never asks for or stores passwords or access tokens.</li>
         <li>Only the chosen site address, library and folder are saved, in this browser.</li>
       </ul>
@@ -268,6 +279,8 @@ export function ParentStep() {
   const library = useWizard((s) => s.library);
   const parent = useWizard((s) => s.parent);
   const setParent = useWizard((s) => s.setParent);
+  const uploadFlow = useWizard((s) => s.uploadFlow);
+  const setUploadFlow = useWizard((s) => s.setUploadFlow);
   const saveConfiguration = useWizard((s) => s.saveConfiguration);
   const goTo = useWizard((s) => s.goTo);
 
@@ -306,6 +319,7 @@ export function ParentStep() {
   }
 
   const selection = { folderId: currentId, relativePath, serverPath };
+  const queueProblem = uploadFlow ? validateItemName(uploadFlow.queueFolder.trim()) : null;
   const breadcrumb = [library.displayName, ...splitRel(relativePath)];
 
   return (
@@ -314,7 +328,9 @@ export function ParentStep() {
       onBack={() => goTo(4)}
       primary={
         <Button
+          disabled={Boolean(queueProblem)}
           onClick={() => {
+            if (uploadFlow) setUploadFlow({ queueFolder: uploadFlow.queueFolder.trim() });
             setParent(selection);
             // setParent is synchronous; save reads the latest state.
             saveConfiguration();
@@ -378,6 +394,33 @@ export function ParentStep() {
           {serverPath}
         </p>
         <p className="mt-2 text-xs text-muted-foreground">{trail.length === 0 ? "Library root" : "Existing folder"}</p>
+      </div>
+
+      <div className="space-y-3 rounded-lg border p-4">
+        <label htmlFor="use-flow" className="flex items-start gap-3">
+          <Checkbox
+            id="use-flow"
+            checked={Boolean(uploadFlow)}
+            onCheckedChange={(v) => setUploadFlow(v === true ? { queueFolder: uploadFlow?.queueFolder ?? DEFAULT_QUEUE_FOLDER } : null)}
+            className="mt-0.5"
+          />
+          <span className="text-sm">
+            <span className="block font-medium">Upload PDF, Office and image files through the Power Automate upload flow</span>
+            <span className="block text-muted-foreground">Requires the "SPSB Upload" flow set up by your administrator.</span>
+          </span>
+        </label>
+        {uploadFlow && (
+          <Field label="Queue folder (in the library root)" htmlFor="queue-folder" error={queueProblem ?? undefined} hint="Must match the folder the flow watches.">
+            <Input
+              id="queue-folder"
+              value={uploadFlow.queueFolder}
+              onChange={(e) => setUploadFlow({ queueFolder: e.target.value })}
+              aria-invalid={Boolean(queueProblem)}
+              aria-describedby={queueProblem ? "queue-folder-error" : "queue-folder-hint"}
+              className="max-w-xs font-mono"
+            />
+          </Field>
+        )}
       </div>
     </StepFrame>
   );

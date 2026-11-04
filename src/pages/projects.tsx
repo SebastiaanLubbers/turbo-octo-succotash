@@ -56,9 +56,11 @@ export function ProjectsPage() {
 
   const visibleProjects = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    const list = projects.data?.folders ?? [];
+    // The upload-flow queue folder (library root) is infrastructure, not a project.
+    const queue = config?.uploadFlow?.queueFolder?.toLowerCase();
+    const list = (projects.data?.folders ?? []).filter((f) => !(queue && !config?.parent.relativePath && f.name.toLowerCase() === queue));
     return q ? list.filter((p) => p.name.toLowerCase().includes(q)) : list;
-  }, [projects.data, filter]);
+  }, [projects.data, filter, config]);
 
   if (!config) {
     return (

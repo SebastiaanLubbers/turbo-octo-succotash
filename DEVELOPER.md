@@ -28,6 +28,7 @@ Open the folder in Visual Studio Code; recommended extensions are listed in
 | Site access check, library discovery, folder browsing | `src/services/sharepoint-site-service.ts` |
 | Folder plan, existence checks, idempotent creation | `src/services/sharepoint-folder-service.ts` |
 | Duplicate detection, verified upload | `src/services/sharepoint-file-service.ts` |
+| Hand-off of binary files to the Power Automate upload flow | `src/services/upload-flow-service.ts` (setup: `FLOW-SETUP.md`) |
 | Application state and navigation (12 steps) | `src/state/wizard-store.ts`, `src/state/selectors.ts` |
 | Wizard host page ("New project") | `src/pages/home.tsx` |
 | Existing projects: browse folders/files, add files | `src/pages/projects.tsx`, `src/components/explorer/add-file-panel.tsx` |
@@ -78,13 +79,15 @@ reload after re-authentication.
   again right before upload. On a duplicate the user can upload under the next
   free name (`name (2).ext`) or pick another file/folder. Overwrite is not
   implemented.
-* **Text files only in the app:** the SharePoint connection available to the
-  app sends request bodies as UTF-8 text, and the connector's "Send an HTTP
-  request to SharePoint" action is blocked by tenant policy. Binary files (PDF,
-  Office documents, images, archives) would be stored damaged, so the Upload
-  step detects them locally (`canUploadInApp`) and blocks them before any
-  SharePoint call. It offers a link to the destination folder in SharePoint and
-  a "Check if the file is there" action that confirms a manual upload.
+* **Binary files via Power Automate:** the app's SharePoint connection sends
+  request bodies as UTF-8 text, so PDF/Office/image files can't be written
+  directly. When the configuration enables the upload flow, the app writes an
+  upload request (JSON with base64 content) as a text file into the queue
+  folder; the "SPSB Upload" flow writes the real file through Microsoft Graph
+  with credentials from Azure Key Vault and writes a result file back. The app
+  then verifies the file and its size. Without the flow, binary files are
+  blocked before any SharePoint call and the user is sent to SharePoint.
+  See `FLOW-SETUP.md`.
 * **Upload verification:** after `CreateFile` the app reads the file's metadata
   and compares the stored size with the local size. On a mismatch it removes
   the file it just created (the name was free moments earlier) and reports
