@@ -85,7 +85,11 @@ function devWsMute(): Plugin {
       return {
         html,
         tags: [
-          { tag: "script", injectTo: "head-prepend", children: DEV_WS_MUTE_SCRIPT },
+          {
+            tag: "script",
+            injectTo: "head-prepend",
+            children: DEV_WS_MUTE_SCRIPT,
+          },
         ],
       };
     },
@@ -107,7 +111,9 @@ export default defineConfig(({ mode }) => {
   // Intentional: visible at dev-server startup so we can confirm which base Vite
   // is actually using when debugging proxy issues. Safe to leave in — only runs
   // once per `vite` invocation.
-  console.log(`[vite.config] mode=${mode} envDir=${envDir} base=${base} reload=sse`);
+  console.log(
+    `[vite.config] mode=${mode} envDir=${envDir} base=${base} reload=sse`,
+  );
 
   return {
     plugins: [react(), tailwindcss(), devReloadSSE(), devWsMute()],
@@ -141,16 +147,29 @@ export default defineConfig(({ mode }) => {
     // (`dev_server_manager.reclaim_vite_cache_dir`, both the off-FUSE and the
     // legacy in-workspace location) and on container restart — losing it is
     // intentional.
-    cacheDir: process.env.AETHER_VITE_CACHE_DIR || path.resolve(envDir, ".vite-cache"),
+    cacheDir:
+      process.env.AETHER_VITE_CACHE_DIR || path.resolve(envDir, ".vite-cache"),
     resolve: {
       alias: {
         "@": path.resolve(envDir, "src"),
         // Azure Artifacts can mirror TanStack packages without their build/
         // outputs. Vite dev can consume the shipped sources directly.
-        "@tanstack/react-query": path.resolve(envDir, "node_modules/@tanstack/react-query/src/index.ts"),
-        "@tanstack/query-core": path.resolve(envDir, "node_modules/@tanstack/query-core/src/index.ts"),
-        "@tanstack/react-table": path.resolve(envDir, "node_modules/@tanstack/react-table/src/index.tsx"),
-        "@tanstack/table-core": path.resolve(envDir, "node_modules/@tanstack/table-core/src/index.ts"),
+        "@tanstack/react-query": path.resolve(
+          envDir,
+          "node_modules/@tanstack/react-query/src/index.ts",
+        ),
+        "@tanstack/query-core": path.resolve(
+          envDir,
+          "node_modules/@tanstack/query-core/src/index.ts",
+        ),
+        "@tanstack/react-table": path.resolve(
+          envDir,
+          "node_modules/@tanstack/react-table/src/index.tsx",
+        ),
+        "@tanstack/table-core": path.resolve(
+          envDir,
+          "node_modules/@tanstack/table-core/src/index.ts",
+        ),
       },
     },
     build: {
@@ -297,7 +316,6 @@ export default defineConfig(({ mode }) => {
         // than triggering a cold on-demand prebundle behind the upstream
         // proxy's read deadline (same rationale as the TanStack pins
         // below).
-        "@microsoft/managed-apps/data",
         "@zxing/library",
         "leaflet",
         "html2canvas-pro",

@@ -1,10 +1,6 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  connectorErrorMessage,
-  isConnectorPolicyBlock,
-} from "@/lib/connector-error";
 import { cn } from "@/lib/utils";
 
 // Designed empty / error / loading states. Use these so every zero-data,
@@ -66,31 +62,6 @@ export function ErrorState({
       )}
       {action}
     </div>
-  );
-}
-
-// The error state for any failed connector call: pass `result.error` (or the
-// query error it was rethrown as). A DLP/ACP policy block names the policy;
-// anything else stays generic.
-export function ConnectorErrorState({
-  error,
-  connector,
-  action,
-  className,
-}: {
-  error: unknown;
-  connector: string;
-  action?: ReactNode;
-  className?: string;
-}) {
-  const blocked = isConnectorPolicyBlock(error);
-  return (
-    <ErrorState
-      title={blocked ? "Blocked by your organization's policy" : undefined}
-      description={connectorErrorMessage(error, connector)}
-      action={blocked ? undefined : action}
-      className={className}
-    />
   );
 }
 

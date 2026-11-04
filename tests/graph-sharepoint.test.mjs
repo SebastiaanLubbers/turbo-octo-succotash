@@ -13,7 +13,7 @@ const { build } = require(
 const bundle = await build({
   stdin: {
     contents:
-      'export * from "./src/services/graph-sharepoint.ts"; export { SharePointFileService } from "./src/services/sharepoint-file-service.ts";',
+      'export * from "./src/services/graph-sharepoint.ts"; export { SharePointFileService } from "./src/services/sharepoint-file-service.ts"; export { SharePointConfigurationService } from "./src/services/sharepoint-configuration-service.ts";',
     resolveDir: process.cwd(),
     loader: "ts",
   },
@@ -43,6 +43,7 @@ const {
   GraphHttpError,
   GraphItemNotFoundError,
   SharePointFileService,
+  SharePointConfigurationService,
   siteRelativePath,
 } = await import(
   `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].contents).toString("base64")}`
@@ -270,5 +271,48 @@ test("does not upload when the destination lookup fails", async () => {
     assert.equal(uploadRequested, false);
   } finally {
     console.error = originalError;
+  }
+});
+
+test("loads legacy configurations with an upload-flow setting", () => {
+  const originalStorage = globalThis.localStorage;
+  const data = new Map();
+  globalThis.localStorage = {
+    getItem: (key) => data.get(key) ?? null,
+    setItem: (key, value) => data.set(key, value),
+    removeItem: (key) => data.delete(key),
+  };
+  try {
+    const config = {
+      version: 1,
+      savedAt: "2026-01-01T00:00:00.000Z",
+      site: { url: "https://tenant.sharepoint.com/sites/Team", label: "Team" },
+      library: {
+        id: "drive",
+        displayName: "Documents",
+        rootFolderId: "drive|root",
+        rootPath: "/Documents",
+      },
+      parent: {
+        folderId: "drive|root",
+        relativePath: "",
+        serverPath: "/Documents",
+      },
+      uploadFlow: { queueFolder: "_UploadQueue" },
+    };
+    data.set("spsb.graph.configuration.v1", JSON.stringify(config));
+    const loaded = SharePointConfigurationService.load();
+    assert.equal(loaded.site.url, config.site.url);
+    assert.equal(loaded.library.id, config.library.id);
+    assert.equal(loaded.parent.serverPath, config.parent.serverPath);
+    const saved = SharePointConfigurationService.save({
+      site: loaded.site,
+      library: loaded.library,
+      parent: loaded.parent,
+    });
+    assert.equal("uploadFlow" in saved, false);
+  } finally {
+    if (originalStorage === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = originalStorage;
   }
 });

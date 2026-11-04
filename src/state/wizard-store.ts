@@ -11,7 +11,6 @@ import type {
   ProjectInput,
   SharePointConfiguration,
   SharePointSite,
-  UploadFlowSettings,
   UploadResult,
 } from "@/models";
 import { SharePointConfigurationService } from "@/services/sharepoint-configuration-service";
@@ -19,7 +18,12 @@ import { DEFAULT_TEMPLATE_ID } from "@/templates/folder-templates";
 
 export const STEPS = [
   { id: 1, key: "welcome", label: "Welcome", group: "Setup" },
-  { id: 2, key: "connection", label: "Microsoft 365 connection", group: "Setup" },
+  {
+    id: 2,
+    key: "connection",
+    label: "Microsoft 365 connection",
+    group: "Setup",
+  },
   { id: 3, key: "site", label: "SharePoint site", group: "Setup" },
   { id: 4, key: "library", label: "Document library", group: "Setup" },
   { id: 5, key: "parent", label: "Parent location", group: "Setup" },
@@ -28,7 +32,12 @@ export const STEPS = [
   { id: 8, key: "preview", label: "Structure preview", group: "Structure" },
   { id: 9, key: "results", label: "Creation results", group: "Structure" },
   { id: 10, key: "upload", label: "Upload document", group: "Document" },
-  { id: 11, key: "upload-confirm", label: "Upload confirmation", group: "Document" },
+  {
+    id: 11,
+    key: "upload-confirm",
+    label: "Upload confirmation",
+    group: "Document",
+  },
   { id: 12, key: "upload-result", label: "Upload result", group: "Document" },
 ] as const;
 
@@ -41,7 +50,6 @@ interface WizardState {
   site: SharePointSite | null;
   library: DocumentLibrary | null;
   parent: ParentLocation | null;
-  uploadFlow: UploadFlowSettings | null;
   // Project
   project: ProjectInput;
   templateId: string;
@@ -59,7 +67,6 @@ interface WizardState {
   setSite: (site: SharePointSite | null) => void;
   setLibrary: (library: DocumentLibrary | null) => void;
   setParent: (parent: ParentLocation | null) => void;
-  setUploadFlow: (uploadFlow: UploadFlowSettings | null) => void;
   saveConfiguration: () => void;
   startReconfigure: () => void;
   setProject: (patch: Partial<ProjectInput>) => void;
@@ -83,7 +90,6 @@ export const useWizard = create<WizardState>()(
       site: null,
       library: null,
       parent: null,
-      uploadFlow: null,
       project: emptyProject,
       templateId: DEFAULT_TEMPLATE_ID,
       folderResults: null,
@@ -96,17 +102,34 @@ export const useWizard = create<WizardState>()(
       setBusy: (busy) => set({ busy }),
       goTo: (step) => set({ step }),
       setSite: (site) =>
-        set((s) => (s.site?.url === site?.url ? { site } : { site, library: null, parent: null })),
+        set((s) =>
+          s.site?.url === site?.url
+            ? { site }
+            : { site, library: null, parent: null },
+        ),
       setLibrary: (library) =>
-        set((s) => (s.library?.id === library?.id ? { library } : { library, parent: null })),
+        set((s) =>
+          s.library?.id === library?.id
+            ? { library }
+            : { library, parent: null },
+        ),
       setParent: (parent) => set({ parent }),
-      setUploadFlow: (uploadFlow) => set({ uploadFlow }),
       saveConfiguration: () => {
-        const { site, library, parent, uploadFlow } = get();
+        const { site, library, parent } = get();
         if (!site || !library || !parent) return;
-        const config = SharePointConfigurationService.save({ site, library, parent, ...(uploadFlow ? { uploadFlow } : {}) });
+        const config = SharePointConfigurationService.save({
+          site,
+          library,
+          parent,
+        });
         // A new location invalidates results that belonged to the previous one.
-        set({ config, step: 6, folderResults: null, destinationServerPath: null, uploadResult: null });
+        set({
+          config,
+          step: 6,
+          folderResults: null,
+          destinationServerPath: null,
+          uploadResult: null,
+        });
       },
       startReconfigure: () => {
         const { config } = get();
@@ -115,15 +138,20 @@ export const useWizard = create<WizardState>()(
           site: config?.site ?? null,
           library: config?.library ?? null,
           parent: config?.parent ?? null,
-          uploadFlow: config?.uploadFlow ?? null,
         });
       },
       setProject: (patch) =>
-        set((s) => ({ project: { ...s.project, ...patch }, folderResults: null, destinationServerPath: null })),
+        set((s) => ({
+          project: { ...s.project, ...patch },
+          folderResults: null,
+          destinationServerPath: null,
+        })),
       setTemplateId: (templateId) => set({ templateId, folderResults: null }),
       setFolderResults: (folderResults) => set({ folderResults }),
-      setFile: (file) => set({ file, targetFileName: file?.name ?? null, uploadResult: null }),
-      setDestination: (destinationServerPath) => set({ destinationServerPath, uploadResult: null }),
+      setFile: (file) =>
+        set({ file, targetFileName: file?.name ?? null, uploadResult: null }),
+      setDestination: (destinationServerPath) =>
+        set({ destinationServerPath, uploadResult: null }),
       setTargetFileName: (targetFileName) => set({ targetFileName }),
       setUploadResult: (uploadResult) => set({ uploadResult }),
       startNewProject: () =>
@@ -148,7 +176,6 @@ export const useWizard = create<WizardState>()(
         site: s.site,
         library: s.library,
         parent: s.parent,
-        uploadFlow: s.uploadFlow,
         project: s.project,
         templateId: s.templateId,
         folderResults: s.folderResults,

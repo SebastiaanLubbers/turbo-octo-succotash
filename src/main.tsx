@@ -9,13 +9,8 @@ import { reportPrivateRuntimeError } from "./lib/console-capture";
 import { App } from "./App";
 import { postAppRuntimeErrorToCoworkParent } from "./lib/cowork-parent-transport";
 import { postAppMountedToCoworkParent } from "./lib/app-mounted-transport";
-import { startConnectorPolicyMonitor } from "./lib/connector-policy-monitor";
-import { ConnectorPolicyBanner } from "./components/connector-policy-banner";
 import { installPreviewCameraBridge } from "./lib/preview-camera-bridge";
 import "./index.css";
-
-// Before render, so a block on the first page's queries is not missed.
-startConnectorPolicyMonitor();
 
 // Design-time preview only: the host iframe has no camera of its own, so route
 // getUserMedia through the Cowork host's consented camera bridge. A published
@@ -102,8 +97,6 @@ createRoot(document.getElementById("root")!, {
 }).render(
   <StrictMode>
     <App />
-    <ConnectorPolicyBanner />
     <MountSignal />
-  </StrictMode>
+  </StrictMode>,
 );
-
